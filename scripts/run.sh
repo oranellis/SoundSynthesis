@@ -2,4 +2,4 @@
 
 ./sounds
 
-vlc example.wav
+vlc sounds.wav
