@@ -1,7 +1,12 @@
 #include "main.hpp"
 
-double playback_time = 1;
-double frequency_hz = 220;
+double playback_time = 5;
+std::vector<double> sin_wave_frequency_table = {220, 330, 275};
+std::vector<double> sin_wave_amplitude_table = {1, 0.5, 0.75};
+std::vector<double> sin_wave_position_table = {0, 0, 0};
+std::vector<double> square_wave_frequency_table = {440};
+std::vector<double> square_wave_amplitude_table = {0.05};
+std::vector<double> square_wave_position_table = {0, 0};
 enum playback_type {
 	live,
 	wav
@@ -36,14 +41,22 @@ double SquareWave(double argument) {
 	return (argument-floor(argument) < 0.5 ? -1 : 1);
 }
 
-double IncrementWavePosition(double wave_position, double frequency, int sample_rate);
+double SawWave(double argument) {
+	return ((argument * 2) - 1);
+}
+
+void AdvanceWavePosition(double* wave_position, double frequency, int sample_rate) {
+	double old_wave_position = *wave_position;
+	*wave_position = old_wave_position + (frequency / sample_rate);
+	if (*wave_position > 1) {
+		*wave_position = *wave_position - floor(*wave_position);
+	}
+}
 
 // double WaveProfile1(double time) {
 // 	if (time < 1) {
-
 // 	}
 // 	else if (time < 3) {
-
 // 	}
 // }
 
@@ -51,17 +64,27 @@ std::vector<int8_t> MakeStaticSounds() {
 	std::vector<int8_t> sound_data_vector;
 	uint64_t total_sample_count = SAMPLE_RATE * playback_time;
 	int16_t sound_sample;
-	double sin_counter;
-	double wave_argument;
+	double combined_wave_amplitude;
+	double wave_aplitude_sum;
 	for (uint64_t sample_iterator = 0; sample_iterator < total_sample_count; sample_iterator++) {
-		wave_argument = static_cast<double>(sample_iterator) * frequency_hz / SAMPLE_RATE;
-		sound_sample = 32767 * (SquareWave(wave_argument));
+		combined_wave_amplitude = 0;
+		wave_aplitude_sum = 0;
+		for (auto sin_table_iterator = 0; sin_table_iterator < sin_wave_position_table.size(); sin_table_iterator++) {
+			wave_aplitude_sum += sin_wave_amplitude_table[sin_table_iterator];
+			combined_wave_amplitude += sin_wave_amplitude_table[sin_table_iterator] * SinWave(sin_wave_position_table[sin_table_iterator]);
+			AdvanceWavePosition(&sin_wave_position_table[sin_table_iterator], sin_wave_frequency_table[sin_table_iterator], SAMPLE_RATE);
+		}
+		for (auto square_table_iterator = 0; square_table_iterator < square_wave_position_table.size(); square_table_iterator++) {
+			wave_aplitude_sum += square_wave_amplitude_table[square_table_iterator];
+			combined_wave_amplitude += square_wave_amplitude_table[square_table_iterator] * SquareWave(square_wave_position_table[square_table_iterator]);
+			AdvanceWavePosition(&square_wave_position_table[square_table_iterator], square_wave_frequency_table[square_table_iterator], SAMPLE_RATE);
+		}
+		sound_sample = 32767 * (combined_wave_amplitude / wave_aplitude_sum);
 		uint8_t sound_sample_0, sound_sample_1;
 		sound_sample_0 = static_cast<uint8_t>(sound_sample); // Least significant byte (LSB)
 		sound_sample_1 = static_cast<uint8_t>(sound_sample >> 8); // Most significant byte (MSB)
 		sound_data_vector.push_back(sound_sample_0);
 		sound_data_vector.push_back(sound_sample_1);
-		sin_counter = ((static_cast<double>(sample_iterator * frequency_hz) / SAMPLE_RATE) * TWO_PI);
 	}
 	return sound_data_vector;
 }

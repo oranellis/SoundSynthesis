@@ -1,5 +1,5 @@
 #!/bin/bash
 
-./sounds
+time ./sounds
 
 vlc sounds.wav
