@@ -1,6 +1,7 @@
 #include "main.hpp"
 
 double playback_time = 5;
+bool live_playback = false;
 std::vector<double> sin_wave_frequency_table = {220, 330, 275};
 std::vector<double> sin_wave_amplitude_table = {1, 0.5, 0.75};
 std::vector<double> sin_wave_position_table = {0, 0, 0};
@@ -53,13 +54,6 @@ void AdvanceWavePosition(double* wave_position, double frequency, int sample_rat
 	}
 }
 
-// double WaveProfile1(double time) {
-// 	if (time < 1) {
-// 	}
-// 	else if (time < 3) {
-// 	}
-// }
-
 std::vector<int8_t> MakeStaticSounds() {
 	std::vector<int8_t> sound_data_vector;
 	uint64_t total_sample_count = SAMPLE_RATE * playback_time;
@@ -90,35 +84,56 @@ std::vector<int8_t> MakeStaticSounds() {
 }
 
 int main(int argc, char** argv) {
-	int opt;
-	bool option_l_present = false;
-	while ((opt = getopt(argc, argv, "l")) != -1) {
-		switch (opt) {
-			case 'l':
-				option_l_present = true;
-				break;
-			case '?':
-				std::cerr << "Unknown option: -" << static_cast<char>(optopt) << std::endl;
-				return 1;
-			default:
-				break;
+	if (live_playback) {
+		snd_pcm_t *pcm_handle;
+		int err;
+		// Open the default ALSA PCM device for playback
+		err = snd_pcm_open(&pcm_handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+		if (err < 0) {
+			fprintf(stderr, "Error opening PCM device: %s\n", snd_strerror(err));
+			return -1;
 		}
+		int sample_rate = 48000;
+		int num_channels = 1; // Stereo
+		snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
+		err = snd_pcm_set_params(pcm_handle, format, SND_PCM_ACCESS_RW_INTERLEAVED, num_channels, sample_rate, 0, 100000); // Adjust buffer time as needed
+		if (err < 0) {
+			fprintf(stderr, "Error setting PCM parameters: %s\n", snd_strerror(err));
+			return -1;
+		}
+		std::this_thread::sleep_for(std::chrono::seconds(5));
 	}
-	std::ofstream wav_output_file("sounds.wav", std::ios::out | std::ios::binary);
-	if(!wav_output_file) {
-		std::cout << "Cannot open file!" << std::endl;
-		return 1;
+	else {
+		int opt;
+		bool option_l_present = false;
+		while ((opt = getopt(argc, argv, "l")) != -1) {
+			switch (opt) {
+				case 'l':
+					option_l_present = true;
+					break;
+				case '?':
+					std::cerr << "Unknown option: -" << static_cast<char>(optopt) << std::endl;
+					return 1;
+				default:
+					break;
+			}
+		}
+		std::ofstream wav_output_file("sounds.wav", std::ios::out | std::ios::binary);
+		if(!wav_output_file) {
+			std::cout << "Cannot open file!" << std::endl;
+			return 1;
+		}
+		std::vector<int8_t> sound_data;
+		sound_data = MakeStaticSounds();
+		WavHeaderStruct wav_header;
+		wav_header.total_file_size = sizeof(WavHeaderStruct)+(sound_data.size()); // Sound_data contains bytes so size is size()
+		wav_header.data_chunk_size = sound_data.size();
+		wav_output_file.write((char*)&wav_header, sizeof(WavHeaderStruct));
+		for (uint64_t it = 0; it < sound_data.size(); it++) {
+			char insert = (char)sound_data[it];
+			wav_output_file.write(&insert, 1); // need to write bytes not chars (which are two bytes), maybe compile into chars first
+		}
+		wav_output_file.close();
+		return 0;
 	}
-	std::vector<int8_t> sound_data;
-	sound_data = MakeStaticSounds();
-	WavHeaderStruct wav_header;
-	wav_header.total_file_size = sizeof(WavHeaderStruct)+(sound_data.size()); // Sound_data contains bytes so size is size()
-	wav_header.data_chunk_size = sound_data.size();
-	wav_output_file.write((char*)&wav_header, sizeof(WavHeaderStruct));
-	for (uint64_t it = 0; it < sound_data.size(); it++) {
-		char insert = (char)sound_data[it];
-		wav_output_file.write(&insert, 1); // need to write bytes not chars (which are two bytes), maybe compile into chars first
-	}
-	wav_output_file.close();
-	return 0;
 }
