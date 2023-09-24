@@ -1,3 +1,3 @@
 target_sources(sounds PRIVATE
-	main.cpp
+	main2.cpp
 	)

@@ -1,7 +1,7 @@
 #include "main.hpp"
 
 double playback_time = 5;
-bool live_playback = false;
+bool live_playback = true;
 std::vector<double> sin_wave_frequency_table = {220, 330, 275};
 std::vector<double> sin_wave_amplitude_table = {1, 0.5, 0.75};
 std::vector<double> sin_wave_position_table = {0, 0, 0};
@@ -85,23 +85,44 @@ std::vector<int8_t> MakeStaticSounds() {
 
 int main(int argc, char** argv) {
 	if (live_playback) {
-		snd_pcm_t *pcm_handle;
-		int err;
-		// Open the default ALSA PCM device for playback
-		err = snd_pcm_open(&pcm_handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
-		if (err < 0) {
-			fprintf(stderr, "Error opening PCM device: %s\n", snd_strerror(err));
+		PaError err;
+		err = Pa_Initialize();
+		if (err != paNoError) {
+			fprintf(stderr, "PortAudio error: %s\n", Pa_GetErrorText(err));
 			return -1;
 		}
-		int sample_rate = 48000;
-		int num_channels = 1; // Stereo
-		snd_pcm_format_t format = SND_PCM_FORMAT_S16_LE;
-		err = snd_pcm_set_params(pcm_handle, format, SND_PCM_ACCESS_RW_INTERLEAVED, num_channels, sample_rate, 0, 100000); // Adjust buffer time as needed
-		if (err < 0) {
-			fprintf(stderr, "Error setting PCM parameters: %s\n", snd_strerror(err));
+		// Specify PulseAudio as the host API
+		PaStream *stream;
+		err = Pa_OpenDefaultStream(&stream, 0, 2, paFloat32, 44100, 256, NULL, NULL);
+		if (err != paNoError) {
+			fprintf(stderr, "PortAudio error: %s\n", Pa_GetErrorText(err));
 			return -1;
 		}
-		std::this_thread::sleep_for(std::chrono::seconds(5));
+		err = Pa_StartStream(stream);
+		if (err != paNoError) {
+			fprintf(stderr, "PortAudio error: %s\n", Pa_GetErrorText(err));
+			return -1;
+		}
+		// Generate and play a sine wave (replace with your audio data)
+		std::vector<float> audioData(256, 0.0f);
+		float phase = 0.0f;
+		float frequency = 440.0f;  // A4 (440 Hz)
+		while (1) {
+			for (int i = 0; i < 256; i++) {
+				audioData[i] = 0.5f * sin(2.0f * M_PI * frequency * phase);
+				phase += 1.0f / 44100.0f;
+			}
+			err = Pa_WriteStream(stream, audioData.data(), 256);
+			if (err != paNoError) {
+				fprintf(stderr, "PortAudio error: %s\n", Pa_GetErrorText(err));
+				return -1;
+			}
+		}
+		// Cleanup
+		Pa_StopStream(stream);
+		Pa_CloseStream(stream);
+		Pa_Terminate();
+		return 0;
 	}
 	else {
 		int opt;

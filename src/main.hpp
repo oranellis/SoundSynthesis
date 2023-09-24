@@ -9,7 +9,7 @@
 #include <thread>
 #include <chrono>
 
-#include <alsa/asoundlib.h>
+#include <portaudio.h>
 
 #define SAMPLE_RATE 48000
 #define TWO_PI 6.283185307179586
